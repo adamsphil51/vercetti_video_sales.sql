@@ -1,0 +1,146 @@
+-- Vercetti Video Sales Database
+-- Retail analytics database for multi-branch electronics business
+-- PostgreSQL compatible
+
+DROP TABLE IF EXISTS sale;
+DROP TABLE IF EXISTS inventory_log;
+DROP TABLE IF EXISTS product;
+DROP TABLE IF EXISTS client;
+DROP TABLE IF EXISTS staff;
+DROP TABLE IF EXISTS branch;
+
+
+
+CREATE TABLE branch (
+    branch_id SERIAL PRIMARY KEY,
+    branch_name VARCHAR(120) NOT NULL,
+    city VARCHAR(100) NOT NULL,
+    region VARCHAR(100),
+    opened_on DATE
+);
+
+
+
+CREATE TABLE staff (
+    staff_id SERIAL PRIMARY KEY,
+    first_name VARCHAR(80) NOT NULL,
+    last_name VARCHAR(80) NOT NULL,
+    position VARCHAR(100),
+    branch_id INT NOT NULL REFERENCES branch(branch_id),
+    hire_date DATE,
+    salary NUMERIC(12,2)
+);
+
+
+
+CREATE TABLE client (
+    client_id SERIAL PRIMARY KEY,
+    first_name VARCHAR(80) NOT NULL,
+    last_name VARCHAR(80) NOT NULL,
+    email VARCHAR(120),
+    phone VARCHAR(30),
+    city VARCHAR(100),
+    loyalty_points INT DEFAULT 0
+);
+
+
+
+CREATE TABLE product (
+    product_id SERIAL PRIMARY KEY,
+    product_name VARCHAR(200) NOT NULL,
+    category VARCHAR(100),
+    brand VARCHAR(100),
+    selling_price NUMERIC(12,2) NOT NULL,
+    cost_price NUMERIC(12,2) NOT NULL,
+    stock INT NOT NULL DEFAULT 0
+);
+
+
+
+CREATE TABLE sale (
+    sale_id SERIAL PRIMARY KEY,
+    sale_date DATE NOT NULL,
+    branch_id INT REFERENCES branch(branch_id),
+    staff_id INT REFERENCES staff(staff_id),
+    client_id INT REFERENCES client(client_id),
+    product_id INT REFERENCES product(product_id),
+    quantity INT NOT NULL,
+    total_value NUMERIC(14,2) NOT NULL,
+    payment_type VARCHAR(50)
+);
+
+
+
+CREATE TABLE inventory_log (
+    log_id SERIAL PRIMARY KEY,
+    product_id INT REFERENCES product(product_id),
+    branch_id INT REFERENCES branch(branch_id),
+    movement VARCHAR(20),
+    quantity INT,
+    movement_date DATE
+);
+
+
+
+CREATE INDEX idx_sale_date ON sale(sale_date);
+CREATE INDEX idx_sale_branch ON sale(branch_id);
+CREATE INDEX idx_sale_product ON sale(product_id);
+
+
+
+-- Revenue by branch
+
+SELECT 
+    b.branch_name,
+    SUM(s.total_value) AS revenue
+FROM sale s
+JOIN branch b ON s.branch_id = b.branch_id
+GROUP BY b.branch_name
+ORDER BY revenue DESC;
+
+
+
+-- Monthly revenue trend
+
+SELECT 
+    DATE_TRUNC('month', sale_date) AS month,
+    SUM(total_value) AS revenue
+FROM sale
+GROUP BY month
+ORDER BY month;
+
+
+
+-- Top performing staff
+
+SELECT 
+    st.first_name,
+    st.last_name,
+    SUM(s.total_value) AS total_sales
+FROM sale s
+JOIN staff st ON s.staff_id = st.staff_id
+GROUP BY st.first_name, st.last_name
+ORDER BY total_sales DESC;
+
+
+
+-- Product profitability
+
+SELECT 
+    p.product_name,
+    SUM(s.quantity * (p.selling_price - p.cost_price)) AS profit
+FROM sale s
+JOIN product p ON s.product_id = p.product_id
+GROUP BY p.product_name
+ORDER BY profit DESC;
+
+
+
+-- Low stock check
+
+SELECT 
+    product_name,
+    stock
+FROM product
+WHERE stock < 10
+ORDER BY stock;
